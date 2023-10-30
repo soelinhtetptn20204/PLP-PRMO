@@ -1,0 +1,129 @@
+import discord; from discord.ext import commands
+import os, sys, requests
+from dotenv import load_dotenv
+import math, cmath, numpy as np, cv2
+import asyncio
+import datetime
+import tensorflow as tf
+from PIL import Image
+from werkzeug.security import check_password_hash, generate_password_hash
+from cs50 import SQL
+import extra, json
+
+#channel names/id will change
+RULES = 1166411281755025519
+ENTRIES = 1166756190668206211
+ALGEBRA = 1166770207386255470
+COMBI = 1166770238168248411
+GEOMETRY = 1166770259550797934
+NUMTHEO = 1166770259550797934
+
+ratings = {
+    'IMO-er': 4,
+    'TST': 3,
+    'MOMC_Sr': 2.5
+}
+
+#errors
+with open("error_code.txt") as f:
+    errors = f.read()
+errors = json.loads(errors)
+
+### DATA BASE ***
+db = SQL("sqlite:///test.db")
+
+db.execute("CREATE TABLE IF NOT EXISTS members (memberID TEXT PRIMARY KEY,\
+             level TEXT, m_rating TEXT, activated INTEGER)")
+
+db.execute("CREATE TABLE IF NOT EXISTS problems (problemID INTEGER PRIMARY KEY AUTOINCREMENT,\
+           problem_statement TEXT UNIQUE NOT NULL, source TEXT UNIQUE NOT NULL, topic TEXT NOT NULL,\
+           tags TEXT, similars TEXT, p_rating REAL)")
+
+db.execute("CREATE TABLE IF NOT EXISTS tags (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, topic TEXT NOT NULL)")
+
+db.execute("CREATE TABLE IF NOT EXISTS contests (abbr TEXT, name TEXT)")
+
+db.execute("CREATE TABLE IF NOT EXISTS hints (p_id INTEGER PRIMARY KEY, hint_1 TEXT, hint_2 TEXT, hint_3 TEXT)")
+
+#each_problem 
+db.execute("CREATE TABLE IF NOT EXISTS each_problem (solving TEXT PRIMARY KEY, hints_used INTEGER, success INTEGER, checked_by TEXT)")
+
+db.execute("CREATE TABLE IF NOT EXISTS each_user (requested INTEGER NOT NULL, req_time TEXT NOT NULL, sub_time TEXT)")
+### DATA BASE ***
+
+
+load_dotenv()
+token = os.getenv('TOKEN')
+
+intents = discord.Intents.all()
+bot = commands.Bot(command_prefix = '$', intents=intents)
+#client = discord.Client(intents=intents)
+
+FID = "Feauture still in Development!!!"
+
+def member_valid(member):
+    to_check = db.execute("SELECT * FROM members WHERE memberID=?", member.id)
+    return len(to_check) and int(to_check[0]['activated'])
+
+@bot.event
+async def on_ready():
+    print(f'{bot.user.name} is connected to Discord')
+
+@bot.event
+async def on_member_join(member):
+    check = db.execute("SELECT * FROM members where memberID=?", f"{member.id}")
+    if len(check): 
+        await member.send("Welcome back!")
+        db.execute("UPDATE members SET activated = 1 WHERE memberID=?", f"{member.id}")
+        return
+    await member.send(f"Welcome to IMO testing! Don't forget to react to any one msg in <#{RULES}> to get started.") 
+    db.execute("INSERT INTO members (memberID, activated) VALUES (?, 1)", f"{member.id}")
+    channel = bot.get_channel(ENTRIES)
+    await channel.send(f"Please welcome @{member.name}.\
+                       \nEnjoy problem solving!")
+
+@bot.event
+async def on_raw_reaction_add(payload):
+    member = payload.member
+    channel = payload.channel_id
+    await member.send(member.roles[1].name)
+    if channel == RULES:
+        if not db.execute("SELECT level FROM members WHERE memberID=?", f"{member.id}")[0]['level']:
+            lvl = member.roles[1].name
+            med = [ratings[lvl]]*4
+            db.execute("UPDATE members SET m_rating=?, level=? WHERE memberID=?", f"{med}", lvl, member.id)
+            await member.send("Great. Your role has been set. Please don't change the role.\
+                              \nIf u did or intend to, please inform the administrators.")
+
+@bot.event 
+async def on_member_remove(member):
+    db.execute("UPDATE members SET activated=0 WHERE memberID=?", member.id)
+
+
+@bot.command(name="level_rating_change")
+@commands.has_role("ADMIN")
+async def level_rating_changes(ctx, arg):
+    
+    #to_implement
+    return
+
+@bot.command(name="delete_invite_links", help="Only Admins can command this!")
+@commands.has_role("ADMIN")
+async def _delete_invite_links(ctx):
+    guild = ctx.guild
+    for invite in await guild.invites():
+        await invite.delete()
+    await ctx.send("Done Deleting")
+
+#TESTING
+
+#TESTING
+
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.errors.CheckFailure):
+        await ctx.send('You do not have the role to use this command')
+
+
+
+bot.run(token)
