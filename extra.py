@@ -1,11 +1,18 @@
-import json
+import json, os, time
+import pandas as pd
 from cs50 import SQL
 
-def check_valid(msg):
-    #the msg has three string separated by 2 space
-    #the format must be member name, followed by string and int (0 or 1)
-    #return the correponding integer according to error code 
-    return
+
+def check1(msg, goal):
+    #check the message doesnt contain first word as $some_comand
+    #check if the message is valid according to goal
+    #return the topic as "A" or "C"
+    #return the number as integer
+    #return the list of tuples(where separated by and)
+    #return the list of ratings(int) possible duplicates 
+    #return the error code according to error_code.txt
+    if msg == "": return "1"
+    return 0
 
 """
 db = SQL("sqlite:///test.db")

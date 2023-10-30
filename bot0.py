@@ -4,11 +4,12 @@ from dotenv import load_dotenv
 import math, cmath, numpy as np, cv2
 import asyncio
 import datetime
-import tensorflow as tf
-from PIL import Image
+#import tensorflow as tf
+#from PIL import Image
 from werkzeug.security import check_password_hash, generate_password_hash
 from cs50 import SQL
-import extra, json
+import json
+from extra import *
 
 #channel names/id will change
 RULES = 1166411281755025519
@@ -86,7 +87,7 @@ async def on_member_join(member):
 async def on_raw_reaction_add(payload):
     member = payload.member
     channel = payload.channel_id
-    await member.send(member.roles[1].name)
+    #await member.send(member.roles[1].name)
     if channel == RULES:
         if not db.execute("SELECT level FROM members WHERE memberID=?", f"{member.id}")[0]['level']:
             lvl = member.roles[1].name
@@ -99,11 +100,38 @@ async def on_raw_reaction_add(payload):
 async def on_member_remove(member):
     db.execute("UPDATE members SET activated=0 WHERE memberID=?", member.id)
 
+@bot.command(name="recommend", help="Just uses $recommend in DM")
+@commands.max_concurrency(1,per=commands.BucketType.default,wait=False)
+#@commands.cooldown(1, 250, commands.BucketType.default)
+async def _recommend(ctx):
+    if len(db.execute("SELECT * FROM members WHERE memberID=?", ctx.author.id)) == 0:
+        await ctx.send("Please rejoin the server to request problems.")
+        return
+    user = ctx.author
+    query = {
+        "Topic u'd like to do": "",
+        "How many questions": "",
+        "Problem-theme Tags": "comma ',' or 'and' for union",
+        "Difficulty rating": f"You can refer to problem rating numbers and usage in the <#{RULES}>."
+    }
+    for q in query:
+        for i in range(3):
+            await ctx.send(f"{q}? {query[q]}")
+            try:
+               message = await bot.wait_for("message", timeout=60)
+            except:
+               await ctx.send("Time out. Please msg me $recommend for problem req")
+            if check1(message.content, q) not in {'1','2','3','4','5'}:
+                query[q] = message.content
+                break
+            if i == 2:
+               await ctx.send("Try again. Just message me $recommend for problem req")
+               return
+    return
 
 @bot.command(name="level_rating_change")
 @commands.has_role("ADMIN")
-async def level_rating_changes(ctx, arg):
-    
+async def _level_rating_changes(ctx, arg): 
     #to_implement
     return
 
@@ -123,7 +151,7 @@ async def _delete_invite_links(ctx):
 async def on_command_error(ctx, error):
     if isinstance(error, commands.errors.CheckFailure):
         await ctx.send('You do not have the role to use this command')
-
-
+    if isinstance(error, commands.MaxConcurrencyReached):
+        await ctx.author.send('Bot is busy! Please retry in a minute')
 
 bot.run(token)

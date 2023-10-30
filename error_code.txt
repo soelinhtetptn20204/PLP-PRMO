@@ -1,3 +1,8 @@
 {
-    
+    "1" : "Invalid. You should message rating as integers.",
+    "2" : "You should spend at most 1 minutes for each question.",
+    "3" : "Only one topic per each request",
+    "4" : "Maximum no. of questions per request",
+    "5" : "Don't use command while other one in use",
+    "6" : "Bot is busy; pls retry in a minute."
 }
