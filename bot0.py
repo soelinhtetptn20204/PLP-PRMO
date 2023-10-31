@@ -37,19 +37,24 @@ db.execute("CREATE TABLE IF NOT EXISTS members (memberID TEXT PRIMARY KEY,\
              level TEXT, m_rating TEXT, activated INTEGER)")
 
 db.execute("CREATE TABLE IF NOT EXISTS problems (problemID INTEGER PRIMARY KEY AUTOINCREMENT,\
-           problem_statement TEXT UNIQUE NOT NULL, source TEXT UNIQUE NOT NULL, topic TEXT NOT NULL,\
-           tags TEXT, similars TEXT, p_rating REAL)")
+           problem_statement TEXT UNIQUE NOT NULL, source TEXT, topic TEXT NOT NULL,\
+           tags TEXT, p_rating REAL)")
 
-db.execute("CREATE TABLE IF NOT EXISTS tags (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, topic TEXT NOT NULL)")
+db.execute("CREATE TABLE IF NOT EXISTS tags (tagID INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, topic TEXT NOT NULL)")
 
 db.execute("CREATE TABLE IF NOT EXISTS contests (abbr TEXT, name TEXT)")
 
 db.execute("CREATE TABLE IF NOT EXISTS hints (p_id INTEGER PRIMARY KEY, hint_1 TEXT, hint_2 TEXT, hint_3 TEXT)")
 
-#each_problem 
+#each problem, user and tags
 db.execute("CREATE TABLE IF NOT EXISTS each_problem (solving TEXT PRIMARY KEY, hints_used INTEGER, success INTEGER, checked_by TEXT)")
 
 db.execute("CREATE TABLE IF NOT EXISTS each_user (requested INTEGER NOT NULL, req_time TEXT NOT NULL, sub_time TEXT)")
+
+db.execute("CREAT TABLE IF NOT EXISTS each_tag (p_id INTEGER PRIMARY KEY, p_rating REAL)")
+
+#users' query
+db.execute("CREATE TABLE IF NOT EXISTS queries (prompt TEXT)")
 ### DATA BASE ***
 
 
@@ -104,6 +109,9 @@ async def on_member_remove(member):
 @commands.max_concurrency(1,per=commands.BucketType.default,wait=False)
 #@commands.cooldown(1, 250, commands.BucketType.default)
 async def _recommend(ctx):
+    """
+    Planning to change with language processing for more convenience.
+    """
     user = ctx.author
     if not member_valid(user):
         await ctx.send("Please rejoin the server to request problems.")
@@ -135,7 +143,22 @@ async def _level_rating_changes(ctx, arg):
     #to_implement
     return
 
-@bot.command(name="delete_invite_links", help="Only Admins can command this!")
+@bot.command(name="problem_add")
+@commands.has_role("ADMIN")
+async def _problem_add(ctx):
+    return
+
+@bot.command(name="hint_add")
+@commands.has_role("ADMIN")
+async def _hint_add(ctx):
+    return
+
+@bot.command(name='tag_add')
+@commands.has_role("ADMIND")
+async def _tag_add(ctx):
+    return
+
+@bot.command(name="delete_invite_links")
 @commands.has_role("ADMIN")
 async def _delete_invite_links(ctx):
     guild = ctx.guild
@@ -143,10 +166,12 @@ async def _delete_invite_links(ctx):
         await invite.delete()
     await ctx.send("Done Deleting")
 
-#TESTING
+@bot.command(name="nlp_increase")
+@commands.has_role("ADMIN")
+async def _nlp_increase(ctx):
+    return
 
-#TESTING
-
+#Error handling
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.errors.CheckFailure):
