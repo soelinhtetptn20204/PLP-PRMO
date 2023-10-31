@@ -3,6 +3,8 @@ from spacy.tokens import DocBin
 from tqdm import tqdm
 from spacy.util import filter_spans
 """
+#TESTING TRAINING NLP
+#SUCCESS ON SMALL DATASET
 training_data = [
     {
         'text': 'Could u give me 3 geometry problems?', 

@@ -9,15 +9,18 @@ import datetime
 from werkzeug.security import check_password_hash, generate_password_hash
 from cs50 import SQL
 import json
-from extra import *
+import extra
 
 #channel names/id will change
 RULES = 1166411281755025519
 ENTRIES = 1166756190668206211
-ALGEBRA = 1166770207386255470
-COMBI = 1166770238168248411
-GEOMETRY = 1166770259550797934
-NUMTHEO = 1166770259550797934
+
+subm = {
+"A": 1166770207386255470,
+"C": 1166770238168248411,
+"G": 1166770259550797934,
+"N": 1166770259550797934
+}
 
 ratings = {
     'IMO-er': 4,
@@ -37,21 +40,24 @@ db.execute("CREATE TABLE IF NOT EXISTS members (memberID TEXT PRIMARY KEY,\
              level TEXT, m_rating TEXT, activated INTEGER)")
 
 db.execute("CREATE TABLE IF NOT EXISTS problems (problemID INTEGER PRIMARY KEY AUTOINCREMENT,\
-           problem_statement TEXT UNIQUE NOT NULL, source TEXT, topic TEXT NOT NULL,\
-           tags TEXT, p_rating REAL)")
+           problem_statement TEXT UNIQUE NOT NULL, source TEXT, topic TEXT NOT NULL, p_rating REAL)")
+
+db.execute("CREATE TABLE IF NOT EXISTS psets (psetID INTEGER PRIMARY KEY AUTOINCREMENT, topic TEXT, memberID TEXT,\
+            p1 INTEGER, p2 INTEGER, p3 INTEGER, p4 INTEGER, p5 INTEGER)") 
 
 db.execute("CREATE TABLE IF NOT EXISTS tags (tagID INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, topic TEXT NOT NULL)")
-
-db.execute("CREATE TABLE IF NOT EXISTS contests (abbr TEXT, name TEXT)")
 
 db.execute("CREATE TABLE IF NOT EXISTS hints (p_id INTEGER PRIMARY KEY, hint_1 TEXT, hint_2 TEXT, hint_3 TEXT)")
 
 #each problem, user and tags
 db.execute("CREATE TABLE IF NOT EXISTS each_problem (solving TEXT PRIMARY KEY, hints_used INTEGER, success INTEGER, checked_by TEXT)")
+#format {topic}{id}
 
-db.execute("CREATE TABLE IF NOT EXISTS each_user (requested INTEGER NOT NULL, req_time TEXT NOT NULL, sub_time TEXT)")
+db.execute("CREATE TABLE IF NOT EXISTS each_user (psetID INTEGER PRIMARY KEY, topic TEXT, req_time TEXT NOT NULL, sub_time TEXT)") 
+#format a{userID}
 
-db.execute("CREAT TABLE IF NOT EXISTS each_tag (p_id INTEGER PRIMARY KEY, p_rating REAL)")
+db.execute("CREATE TABLE IF NOT EXISTS each_tag (p_id INTEGER PRIMARY KEY, p_rating REAL)") 
+#format {topic}{tagID}
 
 #users' query
 db.execute("CREATE TABLE IF NOT EXISTS queries (prompt TEXT)")
@@ -105,37 +111,32 @@ async def on_raw_reaction_add(payload):
 async def on_member_remove(member):
     db.execute("UPDATE members SET activated=0 WHERE memberID=?", member.id)
 
-@bot.command(name="recommend", help="Just uses $recommend in DM")
+@bot.command(name="recommend")
 @commands.max_concurrency(1,per=commands.BucketType.default,wait=False)
-#@commands.cooldown(1, 250, commands.BucketType.default)
-async def _recommend(ctx):
-    """
-    Planning to change with language processing for more convenience.
-    """
-    user = ctx.author
-    if not member_valid(user):
-        await ctx.send("Please rejoin the server to request problems.")
-        return
-    query = {
-        "Topic u'd like to do": "",
-        "How many questions": "",
-        "Problem-theme Tags": "comma ',' or 'and' for union",
-        "Difficulty rating": f"You can refer to problem rating numbers and usage in the <#{RULES}>."
-    }
-    for q in query:
-        for i in range(3):
-            await ctx.send(f"{q}? {query[q]}")
-            try:
-               message = await bot.wait_for("message", timeout=60)
-            except:
-               await ctx.send("Time out. Please msg me $recommend for problem req")
-            if check1(message.content, q) not in {'1','2','3','4','5'}:
-                query[q] = message.content
-                break
-            if i == 2:
-               await ctx.send("Try again. Message me $recommend for problem req")
-               return
+async def recommend(ctx):
+    if not member_valid(ctx.author):
+        return ctx.send("Please rejoin the server to req problems")
+    #implementation_left
     return
+
+@bot.command(name="submit", help="$submit psetID followed by the image all at once")
+@commands.max_concurrency(1,per=commands.BucketType.default,wait=False)
+async def _submit(ctx, arg1: str, arg2: discord.Attachment):
+    if not member_valid(ctx.author):
+        await ctx.send("Please rejoin the server for submission")
+        return
+    top = 'A'
+    """
+    top = db.execute("SELECT topic FROM ? WHERE psetID = ?", f"a{ctx.author.id}", int(arg1))
+    if len(top) == 0:
+        await ctx.send("Invalid pset ID. Try again. $submit psetID followed by the image all at once")
+        return 
+    top = top[0]['topic']
+    """
+    channel = await bot.fetch_channel(subm[top])
+    await channel.send(f"{arg2.url.split('?')[0]}\
+                       \npsetID: {arg1}, submittor: {ctx.author.name}")
+    await ctx.send("Success! Make sure u sent only one attachment.\nOtherwise, we recommend scanning all images, combining into a pdf, and sending again.")
 
 @bot.command(name="level_rating_change")
 @commands.has_role("ADMIN")
