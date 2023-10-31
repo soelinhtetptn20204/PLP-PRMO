@@ -63,8 +63,8 @@ bot = commands.Bot(command_prefix = '$', intents=intents)
 FID = "Feauture still in Development!!!"
 
 def member_valid(member):
-    to_check = db.execute("SELECT * FROM members WHERE memberID=?", member.id)
-    return len(to_check) and int(to_check[0]['activated'])
+    to_check = db.execute("SELECT * FROM members WHERE memberID=? AND activated=1", member.id)
+    return len(to_check)
 
 @bot.event
 async def on_ready():
@@ -104,10 +104,10 @@ async def on_member_remove(member):
 @commands.max_concurrency(1,per=commands.BucketType.default,wait=False)
 #@commands.cooldown(1, 250, commands.BucketType.default)
 async def _recommend(ctx):
-    if len(db.execute("SELECT * FROM members WHERE memberID=?", ctx.author.id)) == 0:
+    user = ctx.author
+    if not member_valid(user):
         await ctx.send("Please rejoin the server to request problems.")
         return
-    user = ctx.author
     query = {
         "Topic u'd like to do": "",
         "How many questions": "",
@@ -125,7 +125,7 @@ async def _recommend(ctx):
                 query[q] = message.content
                 break
             if i == 2:
-               await ctx.send("Try again. Just message me $recommend for problem req")
+               await ctx.send("Try again. Message me $recommend for problem req")
                return
     return
 

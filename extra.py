@@ -11,7 +11,6 @@ def check1(msg, goal):
     #return the list of tuples(where separated by and)
     #return the list of ratings(int) possible duplicates 
     #return the error code according to error_code.txt
-    if msg == "": return "1"
     return 0
 
 """
