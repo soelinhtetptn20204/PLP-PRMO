@@ -1,16 +1,26 @@
+"""
 import json, os, time
 import pandas as pd
 from cs50 import SQL
+"""
 
+def check_source(txt):
+    #check if topic is valid outta a,c,g,n
+    #return A for algebra, C for combi and so on
+    #return false otherwise
+    return txt
 
 def check_topic(txt):
-    #blank so far
-    return 0
+    #the format of a problem ID is
+    #{abbr}{year in 4 digit after 1959}p{integer 1 to 30}
+    #return original string if valid, false otherwise
+    return txt
 
 """
 db = SQL("sqlite:///test.db")
-a = db.execute("SELECT * FROM test WHERE name = ?", 'soe')
-print(a)
+
+
+"""
 
 TEMPORARY
 @bot.command(name="recommend", help="Just uses $recommend in DM")
@@ -41,4 +51,4 @@ async def _recommend(ctx):
                await ctx.send("Try again. Message me $recommend for problem req")
                return
     return
-"""
+#"""

@@ -36,20 +36,21 @@ with open("error_code.txt") as f:
 errors = json.loads(errors)
 
 ### DATA BASE ***
+### DELETE rows from CHILD TABLE if DELETE rows from PARENT TABLE
 db = SQL("sqlite:///test.db")
 
 db.execute("CREATE TABLE IF NOT EXISTS members (memberID TEXT PRIMARY KEY,\
              level TEXT, m_rating TEXT, activated INTEGER)")
 
-db.execute("CREATE TABLE IF NOT EXISTS problems (problemID INTEGER PRIMARY KEY AUTOINCREMENT,\
-           problem_statement TEXT UNIQUE NOT NULL, source TEXT, topic TEXT NOT NULL, p_rating REAL)")
+db.execute("CREATE TABLE IF NOT EXISTS problems (problemID TEXT PRIMARY KEY, problem_statement TEXT UNIQUE NOT NULL,\
+            topic TEXT NOT NULL, p_rating REAL)")
 
 db.execute("CREATE TABLE IF NOT EXISTS psets (psetID INTEGER PRIMARY KEY AUTOINCREMENT, topic TEXT, memberID TEXT,\
-            p1 INTEGER, p2 INTEGER, p3 INTEGER, p4 INTEGER, p5 INTEGER)") 
+            p1 TEXT, p2 TEXT, p3 TEXT, p4 TEXT, p5 TEXT)") 
 
 db.execute("CREATE TABLE IF NOT EXISTS tags (tagID INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, topic TEXT NOT NULL)")
 
-db.execute("CREATE TABLE IF NOT EXISTS hints (p_id INTEGER PRIMARY KEY, hint_1 TEXT, hint_2 TEXT, hint_3 TEXT)")
+db.execute("CREATE TABLE IF NOT EXISTS hints (problemID TEXT PRIMARY KEY, hint_1 TEXT, hint_2 TEXT, hint_3 TEXT)")
 
 #each problem, user and tags
 db.execute("CREATE TABLE IF NOT EXISTS each_problem (solving TEXT PRIMARY KEY, hints_used INTEGER, success INTEGER, checked_by TEXT)")
@@ -58,7 +59,7 @@ db.execute("CREATE TABLE IF NOT EXISTS each_problem (solving TEXT PRIMARY KEY, h
 db.execute("CREATE TABLE IF NOT EXISTS each_user (psetID INTEGER PRIMARY KEY, topic TEXT, req_time TEXT NOT NULL, sub_time TEXT)") 
 #format a{userID}
 
-db.execute("CREATE TABLE IF NOT EXISTS each_tag (p_id INTEGER PRIMARY KEY, p_rating REAL)") 
+db.execute("CREATE TABLE IF NOT EXISTS each_tag (problemID TEXT PRIMARY KEY, p_rating REAL)") 
 #format {topic}{tagID}
 
 #users' query
@@ -96,6 +97,7 @@ async def on_member_join(member):
         return
     await member.send(f"Welcome to IMO testing! Don't forget to react to any one msg in <#{RULES}> to get started.") 
     db.execute("INSERT INTO members (memberID, activated) VALUES (?, 1)", f"{member.id}")
+    ###create each user table foreign key included
     channel = bot.get_channel(ENTRIES)
     await channel.send(f"Please welcome @{member.name}.\
                        \nEnjoy problem solving!")
@@ -119,7 +121,7 @@ async def on_member_remove(member):
 @bot.command(name="recommend")
 @commands.dm_only()
 @commands.max_concurrency(1,per=commands.BucketType.default,wait=False)
-async def recommend(ctx):
+async def recommend(ctx, *, content):
     if not member_valid(ctx.author):
         return ctx.send("Please rejoin the server to req problems")
     #implementation_left
@@ -143,7 +145,16 @@ async def _submit(ctx, arg1: str, arg2: discord.Attachment):
     channel = await bot.fetch_channel(subm[top])
     await channel.send(f"{arg2.url.split('?')[0]}\
                        \npsetID: {arg1}, submittor: {ctx.author.name}")
-    await ctx.send("Success! Make sure u sent only one attachment.\nOtherwise, we recommend scanning all images, combining into a pdf, and sending again.")
+    await ctx.send("Success! Make sure u sent only one attachment.\nIf not, we recommend scanning all images, combining into a pdf, and sending again.")
+
+###psetid number
+@bot.command(name="hint_ask")
+@commands.dm_only()
+async def _hint_ask(ctx, psetid, number):
+    if not member_valid(ctx.author):
+        await ctx.send("Please rejoin the server for this service")
+        return
+    return
 
 ###one_of_the_topics
 @bot.command(name="match_companion")
@@ -155,52 +166,81 @@ async def _match_companion(ctx, arg):
 
 ###psetid
 @bot.command(name="ask_pset")
-#check if admin
+#check if admin or asking user has asking psetid valid in the database
 async def _ask_pset(ctx, arg: int):
+    problems = db.execute("SELECT * FROM psets WHERE psetID=? AND memberID=?", arg, ctx.author.id)
+    if not admin_valid(ctx.author) or len(problems)==0:
+        await ctx.send("Asking psets denied. Make sure ur admin or u asked for that pset")
     #to_implement
-    if not admin_valid(ctx.author):
-        await ctx.send("You don't have the role for this command!")
-        return
     return
 
 ###psetid memberid followed by numbers successful
 @bot.command(name="success")
 #check if admin
-async def _success(ctx, psetid, memberid):
+async def _success(ctx, *, arg):
     if not admin_valid(ctx.author):
         await ctx.send("You don't have the role for this command!")
         return
     return
 
-###memberif psetid followed by string of feedback
+###memberid psetid followed by string of feedback
 @bot.command(name="give_feedback")
 #check if admin
-async def _give_feedback(ctx, memberid, psetid):
+async def _give_feedback(ctx, *, arg):
     if not admin_valid(ctx.author):
         await ctx.send("You don't have the role for this command!")
         return
+    content = arg.split(" ", 2)
+    mid, pid, feedback = (i.lower() for i in content)
+    if not len(db.execute("SELECT * FROM ? WHERE psetID=?", f"a{mid}", pid)):
+        await ctx.send("Invalid user or pset"); return
+    user = await bot.fetch_user(int(mid))
+    await user.send(f"Feedback by {ctx.author.name} on pset {pid}:")
+    await user.send(feedback)
     return
 
-###
-@bot.command(name="level_rating_change")
-@commands.guild_only()
-@commands.has_role("ADMIN")
-async def _level_rating_changes(ctx, arg1, arg2, arg3): 
+###source rating topic problem
+@bot.command(name="problem_add")
+@commands.dm_only()
+#check if admin
+async def _problem_add(ctx, *, arg):
+    if not admin_valid(ctx.author):
+        await ctx.send("You don't have the role for this command!")
+        return
+    content = arg.split(" ", 3)
+    if len(content) <4: 
+        await ctx.send("Not enough information for a problem"); return
+    try: 
+        source, rating, topic, problem = (i for i in content)
+        rating = float(rating); source = extra.check_source(source.lower()); topic = extra.check_topic(topic.lower())
+    except: await ctx.send("Invalid rating"); return
+    if not source or len(db.execute("SELECT * FROM problems WHERE problemID=?", source)): 
+        await ctx.send("Invalid problem source/ already exists."); return
+    if not topic:
+        await ctx.send("Invalid topic"); return
+    db.execute("INSERT INTO problems (problemID, problem_statement, topic, p_rating) VALUES (?, ?, ?, ?)", source, rating, topic, problem)
+    ###create each_problem table foreign key included
+    await ctx.send("Problem successfully added")
+    return
+
+@bot.command(name="problem_delete")
+@commands.dm_only()
+async def _problem_delete(ctx):
     if not admin_valid(ctx.author):
         await ctx.send("You don't have the role for this command!")
         return
     #to_implement
     return
 
-@bot.command(name="problem_add")
-#check if admin
-async def _problem_add(ctx):
+@bot.command(name="problem_tagged")
+@commands.dm_only()
+async def _problem_tagged(ctx):
     if not admin_valid(ctx.author):
-        await ctx.send("You don't have the role for this command!")
+        await ctx.send("You dont have the role for this command!")
         return
-    return
 
 @bot.command(name="hint_add")
+@commands.dm_only()
 #check if admin
 async def _hint_add(ctx):
     if not admin_valid(ctx.author):
@@ -208,15 +248,23 @@ async def _hint_add(ctx):
         return
     return
 
+@bot.command(name="hint_delete")
+@bot.dm_only()
+#check if admin
+async def _hint_delete(ctx):
+    if not admin_valid(ctx.author):
+        await ctx.send("You don't have the role for this command!")
+        return
+    return
+
 @bot.command(name='tag_add')
+@commands.dm_only()
 #check if admin
 async def _tag_add(ctx):
     if not admin_valid(ctx.author):
         await ctx.send("You don't have the role for this command!")
         return
     return
-
-###connect member of similar level
 
 @bot.command(name="delete_invite_links")
 @commands.guild_only()
@@ -236,14 +284,14 @@ async def _nlp_increase(ctx):
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.NotOwner):
-        await ctx.author.send("You do not have the priviledge to command this. Only owner can.")
-    if isinstance(error, commands.errors.CheckFailure):
-        await ctx.author.send('You do not have the role to use this command or wrong server/channel')
+        await ctx.send(f"{ctx.author.name}, you do not have the priviledge to command this. Only owner can.")
+    if isinstance(error, commands.MissingRole):
+        await ctx.send(f'{ctx.author.name}, you do not have the role to use this command')
     if isinstance(error, commands.MaxConcurrencyReached):
-        await ctx.author.send('Bot is busy! Please retry in a minute')
+        await ctx.send(f'{ctx.author.name}, bot is busy! Please retry in a minute')
     if isinstance(error, commands.NoPrivateMessage):
-        await ctx.author.send('This command not allowed in DM')
+        await ctx.send(f'{ctx.author.name}, this command not allowed in DM')
     if isinstance(error, commands.PrivateMessageOnly):
-        await ctx.author.send('This command in DM only')
+        await ctx.send(f'{ctx.author.name}, this command in DM only')
 
 bot.run(token)
