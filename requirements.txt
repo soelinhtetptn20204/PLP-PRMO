@@ -2,4 +2,3 @@ discord
 cs50
 PIL
 tensorflow
-werkzeug

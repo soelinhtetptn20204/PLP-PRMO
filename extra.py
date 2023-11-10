@@ -3,8 +3,11 @@ import json, os, time
 import pandas as pd
 from cs50 import SQL
 """
+import spacy
 import re
 from difflib import SequenceMatcher
+
+NER = spacy.load("model-last")
 
 with open("tags.txt") as f:
     tags = [tag.strip() for tag in f]
@@ -25,16 +28,14 @@ def check_tag (List=tags, inputStr=""):
         return List[index]
     elif inputStr == 'fe':
         return "functional_eq"
+    elif inputStr == 'nt':
+        return "number_theory"
     elif len(inputStr) <= 7:
         return List[index] 
-    else:
-        return 0
+    return 0
     
 
 def ratings (string, order):
-    for number in numbers:
-        if number in string:
-            string.replace(number, numbers[number])
     normal_list = re.findall('\d+\.\d+', string)
     for i in normal_list: string.replace(i, "")
     normal_list += re.findall('\d+', string)
@@ -42,34 +43,53 @@ def ratings (string, order):
     if order == "RANGE":
         start = min(normal_list)
         end = max(normal_list)
-        if start < 1 or end > 4:
+        if start < 2 or end > 4:
             return 0
         else:
             return list(range(start, end+1))
     elif order == "RATING":
         normal_list =  list(set(normal_list))
-        if normal_list[0] < 1 or normal_list[len(normal_list)-1] >4:
+        if normal_list[0] < 2 or normal_list[len(normal_list)-1] >4:
             return 0
         else:
             return normal_list
 
-
 def check_topic(txt):
-    #check if topic is valid outta a,c,g,n
-    #return A for algebra, C for combi and so on
-    #return false otherwise
-    return txt
+    #since this function will be used by high lvl users such as admins more often
+    tags = {'geometry':'g', 'geo':'g', 'g':'g',
+            'algebra':'a', 'alge':'a', 'a':'a',
+            'number_theory':'n', 'nt':'n', 'n':'n',
+            'combinatorics':'c', 'combi':'c', 'c':'c'} #tags
+    med = txt.strip().lower()
+    return tags[med] if med in tags else 0
 
 
 def check_source(txt):
     #the format of a problem ID is
-    #{abbr}{year in 4 digit after 1959}p{integer 1 to 30}
+    #{abbr}{year in 4 digit after 1959}p{integer}
     #return original string if valid, false otherwise
-    return txt
+    return txt.lower()
 
-"""
+def check_number_pset(number):
+    number = int(number)
+    if number >=1 and number <=5:
+        return number
+    else: return
+
+def NLP(content):
+    text = NER(content)
+    return [(word.text, word.label_) for word in text.ents]
+
+def text_transform(text):
+    for number in numbers:
+        text = text.replace(number, f" {numbers[number]} ")
+    return text.replace("  ", " ").strip()
+
+"""  
+from cs50 import SQL
 db = SQL("sqlite:///test.db")
-
+a = db.execute("SELECT id FROM testing")[0]
+print(type(a['id']))
 
 TEMPORARY
 @bot.command(name="recommend", help="Just uses $recommend in DM")
