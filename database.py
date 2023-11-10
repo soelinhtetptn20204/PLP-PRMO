@@ -33,6 +33,10 @@ db.execute("CREATE TABLE IF NOT EXISTS each_tag (problemID TEXT PRIMARY KEY, p_r
            CONSTRAINT constraint_tag FOREIGN KEY (problemID) REFERENCES problems(problemID) ON DELETE CASCADE)") 
 #format {topic}{tag_name}
 
+###QUERIES
+db.execute("CREATE TABLE IF NOT EXISTS history (memberID TEXT NOT NULL, topic TEXT NOT NULL, rating TEXT NOT NULL, counts INTEGER NOT NULL,\
+           CONSTRAINT constraint_history FOREIGN KEY (memberID) REFERENCES members(memberID) ON DELETE CASCADE)")
+
 #users' query
 db.execute("CREATE TABLE IF NOT EXISTS queries (prompt TEXT)")
 ### DATA BASE ***

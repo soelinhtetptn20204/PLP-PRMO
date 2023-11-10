@@ -1,13 +1,20 @@
 """
 import json, os, time
 import pandas as pd
-from cs50 import SQL
 """
 import spacy
 import re
 from difflib import SequenceMatcher
+"""
+from cs50 import SQL
+db = SQL("sqlite:///test.db")
 
-NER = spacy.load("model-last")
+for tag in TAGS:
+    db.execute("INSERT INTO tags (name, topic) VALUES (?, ?)", tag, TAGS[tag])
+    db.execute("CREATE TABLE IF NOT EXISTS ? (problemID TEXT PRIMARY KEY, p_rating REAL,\
+           CONSTRAINT constraint_tag FOREIGN KEY (problemID) REFERENCES problems(problemID) ON DELETE CASCADE)", f"{TAGS[tag]}{tag}")
+"""
+NER = spacy.load("model-last-10-nov")
 
 with open("tags.txt") as f:
     tags = [tag.strip() for tag in f]
@@ -16,23 +23,31 @@ numbers = {"one": "1", "two": "2", "three": "3",
            "four": "4", "five": "5", "six":"6",
            "seven": "7", "eight": "8", "nine": "9"}
 
-def check_tag (List=tags, inputStr=""):
-    Max = SequenceMatcher(a = List[0], b = inputStr).ratio()
+TAGS = {
+    'geometry': 'g', 'number_theory': 'n', 'combinatorics': 'c', 'algebra': 'a',
+    'invariant': 'c', 'c_induction': 'c', 'pigeonhole': 'c', 'invariant': 'c','monovariant': 'c','greedy': 'c', 'graph_theory': 'c', 'counting': 'c', 'permutation': 'c','rust': 'c',
+    'n_induction': 'n', 'divisibility':'n','gcd-lcm':'n','prime':'n','fermat':'n','modulo':'n',
+    'a_induction': 'a', 'am-gm':'a', 'cauchy':'a', 'polynomial':'a', 'inequality':'a', 'harmonic_mean':'a', 'functional_equation':'a',
+    'angle_chasing': 'g', 'incenter':'g',  'lengths':'g', 'cyclic_quad':'g', 'orthocenter':'g', 'sprial_sim':'g', 'similarity':'g'
+}
+
+def check_tag (inputStr):
+    Max = SequenceMatcher(a = tags[0], b = inputStr).ratio()
     index = 0
-    for i in range(len(List)):
-        percent = SequenceMatcher(a = List[i], b = inputStr).ratio()
+    for i in range(len(tags)):
+        percent = SequenceMatcher(a = tags[i], b = inputStr).ratio()
         if percent > Max:
             Max = percent
             index = i
     if Max > 0.7:
-        return List[index]
+        return [tags[index]]
     elif inputStr == 'fe':
-        return "functional_eq"
+        return ["functional_eq"]
     elif inputStr == 'nt':
-        return "number_theory"
+        return ["number_theory"]
     elif len(inputStr) <= 7:
-        return List[index] 
-    return 0
+        return [tags[index]]
+    return []
     
 
 def ratings (string, order):
@@ -44,13 +59,13 @@ def ratings (string, order):
         start = min(normal_list)
         end = max(normal_list)
         if start < 2 or end > 4:
-            return 0
+            return []
         else:
             return list(range(start, end+1))
     elif order == "RATING":
         normal_list =  list(set(normal_list))
         if normal_list[0] < 2 or normal_list[len(normal_list)-1] >4:
-            return 0
+            return []
         else:
             return normal_list
 
@@ -62,7 +77,6 @@ def check_topic(txt):
             'combinatorics':'c', 'combi':'c', 'c':'c'} #tags
     med = txt.strip().lower()
     return tags[med] if med in tags else 0
-
 
 def check_source(txt):
     #the format of a problem ID is
@@ -76,14 +90,30 @@ def check_number_pset(number):
         return number
     else: return
 
-def NLP(content):
-    text = NER(content)
-    return [(word.text, word.label_) for word in text.ents]
-
 def text_transform(text):
     for number in numbers:
         text = text.replace(number, f" {numbers[number]} ")
     return text.replace("  ", " ").strip()
+
+def NLP(content):
+    """
+    to retrain the model for "about/around" on quantity of problems
+    """
+    text = NER(text_transform(content))
+    entities =  {'TOPIC': {'a':0, 'c':0, 'g':0, 'n':0}, 'TAG':[], 'RATING':[], 'QUANTITY':[]}
+    for word in text.ents:
+        if word.label_ in ['RANGE', 'RATING']:
+            entities['RATING'] += ratings(word.text)
+        elif word.label_ == 'TAG':
+            entities['TAG'] += check_tag(word.text)
+        else:
+            try: quan = [1] if word.text.strip() in ['a','an'] else [int(word.text)]
+            except: quan = []
+            entities['QUANTITY'] += quan
+    for tag in entities['TAG']:
+        entities['TOPIC'][TAGS[tag]]+=1
+    entities['TOPIC'] = max(entities['TOPIC'], key=entities['TOPIC'].get)
+    return entities
 
 """  
 from cs50 import SQL

@@ -39,7 +39,14 @@ ratings = {
     'MOMC_Sr': 2.5,
     'MOMC_Jr': 2
 }
-
+"""
+TAGS = {
+    'geometry': 'g', 'number_theory': 'n', 'combinatorics': 'c', 'algebra': 'a',
+    'invariant': 'c', 'c_induction': 'c', 'pigeonhole': 'c', 'invariant': 'c','monovariant': 'c','greedy': 'c', 'graph_theory': 'c', 'counting': 'c', 'permutation': 'c','rust': 'c',
+    'n_induction': 'n', 'divisibility':'n','gcd-lcm':'n','prime':'n','fermat':'n','modulo':'n',
+    'a_induction': 'a', 'am-gm':'a', 'cauchy':'a', 'polynomial':'a', 'inequality':'a', 'harmonic_mean':'a', 'functional_equation':'a',
+    'angle_chasing': 'g', 'incenter':'g',  'lengths':'g', 'cyclic_quad':'g', 'orthocenter':'g', 'sprial_sim':'g', 'similarity':'g'
+}"""
 #errors
 with open("error_code.txt") as f:
     errors = f.read()
@@ -107,10 +114,15 @@ async def on_member_remove(member):
 async def recommend(ctx, *, content):
     if not member_valid(ctx.author):
         return ctx.send(f"{ctx.author.mention}. Please rejoin the server to req problems")
-    default_num = 3
-    default_rating = eval(db.execute("SELECT m_rating FROM members WHERE memberID=?", ctx.author.id)[0]['m_rating'])
-    content = extra.text_transform(content.strip().lower())
-    #transform the text so that all punctuation symbols and numbers are spaced at least once
+    entities = extra.NLP(content.strip().lower())
+    if not len(entities['TAG']) or not len(entities['QUANTITY']): 
+        await ctx.send("You must specify which topic/theme and quantity u want to do, or u can msg just '$recommend' for\
+                        random problem recommendation depending on ur previous askings"); return
+    topic = entities.pop('TOPIC')
+    ratings = entities['RATING'] if entities['RATING'] else eval(db.execute("SELECT m_rating FROM members WHERE memberID=?",
+                                                                            ctx.author.id)[0]['m_rating'])[toi[topic]]
+    tags = entities['TAG']; quan = entities["QUANTITY"]
+    #problem_recommendation_left
     #implementation_left
     return
 
@@ -118,7 +130,7 @@ async def recommend(ctx, *, content):
 @commands.dm_only()
 @commands.max_concurrency(1,per=commands.BucketType.default,wait=False)
 async def recommend(ctx, *, content):
-    ### IF NLP MODEL DOESNT WORK ###
+    ### AUTO RECOMMEND WITHOUT ANY PROMPT ###
     return
 
 @bot.command(name="submit", help="$submit psetID followed by the image all at once")
@@ -297,8 +309,7 @@ async def _problem_add(ctx, *, arg):
         await ctx.send("Invalid topic"); return
     db.execute("INSERT INTO problems (problemID, problem_statement, topic, p_rating) VALUES (?, ?, ?, ?)", source, problem, topic, rating)
     db.execute("INSERT INTO hints (problemID) VALUES (?)", source)
-    db.execute("CREATE TABLE IF NOT EXISTS ? (solving TEXT PRIMARY KEY, hints_used INTEGER DEAFULT 0, \
-               success INTEGER DEFAULT 0, checked_by TEXT)", f"{topic}{source}")
+    db.execute("CREATE TABLE ? (solving TEXT PRIMARY KEY, hints_used INTEGER DEFAULT 0, success INTEGER DEFAULT 0, checked_by TEXT)", f"{topic}{source}")
     jury = await bot.fetch_channel(JURY)
     await jury.send(f"{ctx.author.mention} added a new problem {source} themed in {topic} rated {rating}")
     return
@@ -313,7 +324,7 @@ async def _problem_delete(ctx, id, topic):
     topic = extra.check_topic(topic)
     if not len(db.execute("SELECT problemID FROM problems WHERE problemID=? AND topic=?", id, topic)):
         await ctx.send(f"Invalid problemID or topic"); return
-    db.execute("DELETE FROM problemID WHERE problemID=? AND topic=?", id, topic)
+    db.execute("DELETE FROM problems WHERE problemID=? AND topic=?", id, topic)
     db.execute("DROP TABLE IF EXISTS ?", f"{topic}{id}")
     jury = await bot.fetch_channel(JURY)
     await jury.send(f"{ctx.author.mention} deleted a problem {id} themed in {topic}")

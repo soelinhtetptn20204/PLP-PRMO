@@ -11,9 +11,9 @@ counting
 graph_theory
 permutation
 am-gm
-arithmetic mean
-geometric mean
-harmonic mean
+arithmetic_mean
+geometric_mean
+harmonic_mean
 functional_eq
 cauchy
 polynomial
@@ -35,3 +35,4 @@ divisibility
 gcd-lcm
 coprime
 prime
+pigeonhole
