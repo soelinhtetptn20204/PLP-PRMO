@@ -9,7 +9,7 @@ from datetime import datetime
 #from cs50 import SQL
 import json
 import extra
-import re
+import re, random
 from database import db
 
 #channel names/id will change
@@ -108,31 +108,95 @@ async def on_raw_reaction_add(payload):
 async def on_member_remove(member):
     db.execute("UPDATE members SET activated=0 WHERE memberID=?", member.id)
 
+#conversational msg
 @bot.command(name="hey")
 @commands.dm_only()
 @commands.max_concurrency(1,per=commands.BucketType.default,wait=False)
 async def recommend(ctx, *, content):
     if not member_valid(ctx.author):
-        return ctx.send(f"{ctx.author.mention}. Please rejoin the server to req problems")
+        await ctx.send(f"{ctx.author.mention}. Please rejoin the server to req problems"); return
     entities = extra.NLP(content.strip().lower())
-    if not len(entities['TAG']) or not len(entities['QUANTITY']): 
+    if not len(entities['TAG']) or not entities['QUANTITY']: 
         await ctx.send("You must specify which topic/theme and quantity u want to do, or u can msg just '$recommend' for\
                         random problem recommendation depending on ur previous askings"); return
     topic = entities.pop('TOPIC')
-    ratings = entities['RATING'] if entities['RATING'] else eval(db.execute("SELECT m_rating FROM members WHERE memberID=?",
-                                                                            ctx.author.id)[0]['m_rating'])[toi[topic]]
+    ratings = entities['RATING'] if entities['RATING'] else [eval(db.execute("SELECT m_rating FROM members WHERE memberID=?",
+                                                                            ctx.author.id)[0]['m_rating'])[toi[topic]]]
     tags = entities['TAG']; quan = entities["QUANTITY"]
-    #problem_recommendation_left
-    #implementation_left
+    db.execute("INSERT INTO history (memberID, topic, rating, counts) VALUES (?, ?, ?, ?)", ctx.author.id, topic, ratings, quan)
+    problemID = {}
+    for tag in tags:
+        if db.execute("SELECT name FROM tags WHERE name=? AND topic=?", tag, topic):
+            for rating in ratings:
+                id = db.execute("SELECT problemID FROM ? WHERE p_rating=?", f"{topic}{tag}", rating)
+                for i in id:
+                    pid = i['problemID']
+                    if db.execute("SELECT solving FROM ? WHERE solving=?", f"{topic}{pid}", ctx.author.id):
+                        continue
+                    if pid not in problemID: 
+                        problemID[pid] = 2.5
+                    else: problemID[i] += 1
+    problemID = sorted(problemID, key=problemID.get, reverse=1)[0: min(quan, len(problemID))]
+    psetid = db.execute("SELECT MAX(psetID) FROM psets")[0]['MAX(psetID)'] + 1
+    to_send = FORMAT.replace('id', psetid).replace('topic', topic.upper())
+    for i in problemID:
+        to_send += f"\item {i}\n"
+    req_time = datetime.now.strftime("%d/%m/%Y, %H:%M")
+    db.execute("INSERT INTO psets (topic, memberID, req_time) VALUES (?,?,?)", topic, ctx.author.id, req_time)
+    for i in range(1, quan+1):
+        db.execute("UPDATE psets SET ? = ? WHERE problemID = ?", f"p{i}", problemID[i-1], psetid)
+        db.execute("INSERT INTO ? (solving) VALUES (?)", f"{topic}{problemID[i-1]}", ctx.author.id)
+    await ctx.send(to_send)
     return
 
+#just command
 @bot.command(name = "recommend")
 @commands.dm_only()
 @commands.max_concurrency(1,per=commands.BucketType.default,wait=False)
-async def recommend(ctx, *, content):
+async def recommend(ctx):
     ### AUTO RECOMMEND WITHOUT ANY PROMPT ###
+    if not member_valid(ctx.author.id):
+        await ctx.send("Please rejoin the server to req problems"); return
+    data = db.execute("SELECT topic, rating, counts FROM history WHERE memberID = ?", ctx.author.id)
+    rating={'a':[],'c':[],'g':[],'n':[]}
+    topic = []; counts = rating.deepcopy()
+    if len(data) < 25: 
+        await ctx.send("Not enough data to recommend you"); return
+    for i in data:
+        topic.append(i['topic'])
+        rating[i['topic']] += eval(i['rating'])
+        counts[i['topic']] += eval(i['counts'])
+    topic = random.choice(topic)
+    quan = random.choice(counts[topic])
+    ratings = random.choices(rating[topic], k=counts)
+    tags = db.execute("SELECT name FROM tags WHERE topic=?", topic)[0]['name']
+    db.execute("INSERT INTO history (memberID, topic, rating, counts) VALUES (?, ?, ?, ?)", ctx.author.id, topic, ratings, quan)
+    problemID = {}
+    for tag in tags:
+        if db.execute("SELECT name FROM tags WHERE name=? AND topic=?", tag, topic):
+            for rating in ratings:
+                id = db.execute("SELECT problemID FROM ? WHERE p_rating=?", f"{topic}{tag}", rating)
+                for i in id:
+                    pid = i['problemID']
+                    if db.execute("SELECT solving FROM ? WHERE solving=?", f"{topic}{pid}", ctx.author.id):
+                        continue
+                    if pid not in problemID: 
+                        problemID[pid] = 2.5
+                    else: problemID[i] += 1
+    problemID = sorted(problemID, key=problemID.get, reverse=1)[0: min(quan, len(problemID))]
+    psetid = db.execute("SELECT MAX(psetID) FROM psets")[0]['MAX(psetID)'] + 1
+    to_send = FORMAT.replace('id', psetid).replace('topic', topic.upper())
+    for i in problemID:
+        to_send += f"\item {i}\n"
+    req_time = datetime.now.strftime("%d/%m/%Y, %H:%M")
+    db.execute("INSERT INTO psets (topic, memberID, req_time) VALUES (?,?,?)", topic, ctx.author.id, req_time)
+    for i in range(1, quan+1):
+        db.execute("UPDATE psets SET ? = ? WHERE problemID = ?", f"p{i}", problemID[i-1], psetid)
+        db.execute("INSERT INTO ? (solving) VALUES (?)", f"{topic}{problemID[i-1]}", ctx.author.id)
+    await ctx.send(to_send)
     return
 
+#psetID followed by a single file
 @bot.command(name="submit", help="$submit psetID followed by the image all at once")
 @commands.dm_only()
 @commands.max_concurrency(1,per=commands.BucketType.default,wait=False)
@@ -192,7 +256,7 @@ async def _pset_ask(ctx, arg):
         await ctx.send("Invalid Pset"); return
     topic = problemid[0].pop('topic')
     problemid = [problemid[0][f'p{num}'] for num in problemid if problemid[0][f'p{num}']]
-    to_send = FORMAT.replace('id', arg).replace('topic', topic)
+    to_send = FORMAT.replace('id', arg).replace('topic', topic.upper())
     for id in problemid:
         content = db.execute("SELECT problem_statement FROM problems WHERE problemID=?", id)
         if len(content) == 0: content = "\item This problem no longer exists.\n"
@@ -309,7 +373,8 @@ async def _problem_add(ctx, *, arg):
         await ctx.send("Invalid topic"); return
     db.execute("INSERT INTO problems (problemID, problem_statement, topic, p_rating) VALUES (?, ?, ?, ?)", source, problem, topic, rating)
     db.execute("INSERT INTO hints (problemID) VALUES (?)", source)
-    db.execute("CREATE TABLE ? (solving TEXT PRIMARY KEY, hints_used INTEGER DEFAULT 0, success INTEGER DEFAULT 0, checked_by TEXT)", f"{topic}{source}")
+    db.execute("CREATE TABLE ? (solving TEXT PRIMARY KEY, hints_used INTEGER DEFAULT 0, success INTEGER DEFAULT 0, checked_by TEXT,\
+               CONSTRAINT constraint_each FOREIGN KEY (solving) REFERENCES members (memberID) ON DELETE CASCADE)", f"{topic}{source}")
     jury = await bot.fetch_channel(JURY)
     await jury.send(f"{ctx.author.mention} added a new problem {source} themed in {topic} rated {rating}")
     return
@@ -322,12 +387,15 @@ async def _problem_delete(ctx, id, topic):
         await ctx.send(f"{ctx.author.mention}. You don't have the role for this command!"); return
     id = id.lower()
     topic = extra.check_topic(topic)
-    if not len(db.execute("SELECT problemID FROM problems WHERE problemID=? AND topic=?", id, topic)):
+    pstatement = db.execute("SELECT problemID FROM problems WHERE problemID=? AND topic=?", id, topic)
+    if not len(pstatement):
         await ctx.send(f"Invalid problemID or topic"); return
+    pstatement = pstatement[0]['problem_statement']
     db.execute("DELETE FROM problems WHERE problemID=? AND topic=?", id, topic)
     db.execute("DROP TABLE IF EXISTS ?", f"{topic}{id}")
     jury = await bot.fetch_channel(JURY)
     await jury.send(f"{ctx.author.mention} deleted a problem {id} themed in {topic}")
+    await ctx.send(f"The problem statement of the deleted problem: {pstatement}")
     return
 
 #problem_id tag tag tag ...
@@ -365,6 +433,25 @@ async def _problem_get(ctx, *, arg):
     content = content[0]['problem_statement']
     await ctx.send(content)
     return
+
+#problemID topic new_rating
+@bot.command(name="rating_change")
+@commands.dm_only()
+async def _rating_change(ctx, pid, topic, new_rating):
+    if not admin_valid(ctx.author):
+        await ctx.send(f"{ctx.author.mention}. You don't have the role for this command!"); return
+    topic = extra.check_topic(topic); pid = pid.lower().strip()
+    if not db.execute("SELECT problemID FROM problems WHERE problemID=?", pid): 
+        await ctx.send("Invalid problemID"); return
+    try: new_rating = float(new_rating)
+    except: await ctx.send("Invalid rating"); return
+    possible_tags = db.execute("SELECT name FROM tags WHERE topic=?", topic)
+    if not possible_tags: await ctx.send("Invalid topic"); return
+    for i in possible_tags:
+        db.execute("UPDATE ? SET p_rating=? WHERE problemID=?", f"{topic}{i['name']}", new_rating, pid)
+    db.execute("UPDATE problems SET p_rating=? WHERE problemID=?", new_rating, pid)
+    jury = await bot.fetch_channel(JURY)
+    await jury.send(f"{ctx.author.mention} changes the rating of the problem {pid} to {new_rating}")
 
 #problemID hint_no. followed by hint
 @bot.command(name="hint_add")

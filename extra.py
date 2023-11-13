@@ -100,26 +100,26 @@ def NLP(content):
     to retrain the model for "about/around" on quantity of problems
     """
     text = NER(text_transform(content))
-    entities =  {'TOPIC': {'a':0, 'c':0, 'g':0, 'n':0}, 'TAG':[], 'RATING':[], 'QUANTITY':[]}
+    entities =  {'TOPIC': {'a':0, 'c':0, 'g':0, 'n':0}, 'TAG':[], 'RATING':[], 'QUANTITY':0}
     for word in text.ents:
         if word.label_ in ['RANGE', 'RATING']:
             entities['RATING'] += ratings(word.text)
         elif word.label_ == 'TAG':
             entities['TAG'] += check_tag(word.text)
         else:
-            try: quan = [1] if word.text.strip() in ['a','an'] else [int(word.text)]
-            except: quan = []
+            try: quan = 1 if word.text.strip() in ['a','an'] else int(word.text)
+            except: quan = 0
             entities['QUANTITY'] += quan
     for tag in entities['TAG']:
         entities['TOPIC'][TAGS[tag]]+=1
     entities['TOPIC'] = max(entities['TOPIC'], key=entities['TOPIC'].get)
     return entities
 
-"""  
+"""
 from cs50 import SQL
 db = SQL("sqlite:///test.db")
-a = db.execute("SELECT id FROM testing")[0]
-print(type(a['id']))
+a = db.execute("SELECT MAX(id) FROM testing")[0]
+print(a)
 
 TEMPORARY
 @bot.command(name="recommend", help="Just uses $recommend in DM")

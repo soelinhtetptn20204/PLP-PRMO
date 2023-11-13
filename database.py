@@ -22,7 +22,7 @@ db.execute("CREATE TABLE IF NOT EXISTS approved (memberID TEXT PRIMARY KEY, numb
 
 #each problem, user and tags
 db.execute("CREATE TABLE IF NOT EXISTS each_problem (solving TEXT PRIMARY KEY, hints_used INTEGER DEFAULT 0, success INTEGER DEFAULT 0,\
-            checked_by TEXT)")
+            checked_by TEXT, CONSTRAINT constraint_each FOREIGN KEY (solving) REFERENCES members (memberID) ON DELETE CASCADE)")
 #format {topic}{id}
 
 db.execute("CREATE TABLE IF NOT EXISTS each_user (psetID INTEGER PRIMARY KEY, topic TEXT, sub_time TEXT,\
