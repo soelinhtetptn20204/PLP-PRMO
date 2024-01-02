@@ -18,6 +18,9 @@ db.execute("CREATE TABLE IF NOT EXISTS tags (tagID INTEGER PRIMARY KEY AUTOINCRE
 db.execute("CREATE TABLE IF NOT EXISTS hints (problemID TEXT PRIMARY KEY, hint_1 TEXT, hint_2 TEXT, hint_3 TEXT,\
            CONSTRAINT constraint_hint FOREIGN KEY (problemID) REFERENCES problems(problemID) ON DELETE CASCADE)")
 
+db.execute("CREATE TABLE IF NOT EXISTS leaderboard (memberID TEXT PRIMARY KEY, points REAL DEFAULT 0,\
+           CONSTRAINT constraint_member FOREIGN KEY (memberID) REFERENCES members (memberID) ON DELETE CASCADE)")
+
 db.execute("CREATE TABLE IF NOT EXISTS approved (memberID TEXT PRIMARY KEY, number INTEGER)")
 
 #each problem, user and tags

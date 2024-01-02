@@ -5,23 +5,7 @@ import pandas as pd
 import spacy
 import re
 from difflib import SequenceMatcher
-"""
-from cs50 import SQL
-db = SQL("sqlite:///test.db")
-
-for tag in TAGS:
-    db.execute("INSERT INTO tags (name, topic) VALUES (?, ?)", tag, TAGS[tag])
-    db.execute("CREATE TABLE IF NOT EXISTS ? (problemID TEXT PRIMARY KEY, p_rating REAL,\
-           CONSTRAINT constraint_tag FOREIGN KEY (problemID) REFERENCES problems(problemID) ON DELETE CASCADE)", f"{TAGS[tag]}{tag}")
-"""
-NER = spacy.load("model-last-10-nov")
-
-with open("tags.txt") as f:
-    tags = [tag.strip() for tag in f]
-
-numbers = {"one": "1", "two": "2", "three": "3",
-           "four": "4", "five": "5", "six":"6",
-           "seven": "7", "eight": "8", "nine": "9"}
+import datetime
 
 TAGS = {
     'geometry': 'g', 'number_theory': 'n', 'combinatorics': 'c', 'algebra': 'a',
@@ -30,6 +14,25 @@ TAGS = {
     'a_induction': 'a', 'am-gm':'a', 'cauchy':'a', 'polynomial':'a', 'inequality':'a', 'harmonic_mean':'a', 'functional_equation':'a',
     'angle_chasing': 'g', 'incenter':'g',  'lengths':'g', 'cyclic_quad':'g', 'orthocenter':'g', 'sprial_sim':'g', 'similarity':'g'
 }
+
+from cs50 import SQL
+db = SQL("sqlite:///test.db")
+
+for tag in TAGS:
+    if not db.execute("SELECT * FROM tags WHERE name =?", tag):
+       db.execute("INSERT INTO tags (name, topic) VALUES (?, ?)", tag, TAGS[tag])
+       db.execute("CREATE TABLE IF NOT EXISTS ? (problemID TEXT PRIMARY KEY, p_rating REAL,\
+           CONSTRAINT constraint_tag FOREIGN KEY (problemID) REFERENCES problems(problemID) ON DELETE CASCADE)", f"{TAGS[tag]}{tag}")
+
+NER = spacy.load("model-last-10-nov-13loss")
+
+with open("tags.txt") as f:
+    tags = [tag.strip() for tag in f]
+
+numbers = {"one": "1", "two": "2", "three": "3",
+           "four": "4", "five": "5", "six":"6",
+           "seven": "7", "eight": "8", "nine": "9"}
+
 
 def check_tag (inputStr):
     Max = SequenceMatcher(a = tags[0], b = inputStr).ratio()
@@ -79,10 +82,17 @@ def check_topic(txt):
     return tags[med] if med in tags else 0
 
 def check_source(txt):
-    #the format of a problem ID is
-    #{abbr}{year in 4 digit after 1959}p{integer}
-    #return original string if valid, false otherwise
-    return txt.lower()
+    #{abbr}{year in 4 digit after 1959}p{integer} return original string if valid, false otherwise
+    try:
+        med =  txt[::-1].split('p', 1)
+        pno = int(med[0][::-1])
+        year = int(med[1][3::-1])
+        current_year = datetime.date.today().year
+        if (pno <= 30 and pno >=1) and (year<=current_year and year>=1959):
+           return txt
+        return 0
+    except: return 0
+
 
 def check_number_pset(number):
     number = int(number)
@@ -103,13 +113,13 @@ def NLP(content):
     entities =  {'TOPIC': {'a':0, 'c':0, 'g':0, 'n':0}, 'TAG':[], 'RATING':[], 'QUANTITY':0}
     for word in text.ents:
         if word.label_ in ['RANGE', 'RATING']:
-            entities['RATING'] += ratings(word.text)
+            entities['RATING'] += ratings(word.text, word.label_)
         elif word.label_ == 'TAG':
             entities['TAG'] += check_tag(word.text)
         else:
             try: quan = 1 if word.text.strip() in ['a','an'] else int(word.text)
             except: quan = 0
-            entities['QUANTITY'] += quan
+            if quan<=5 and quan>=1: entities['QUANTITY'] += quan
     for tag in entities['TAG']:
         entities['TOPIC'][TAGS[tag]]+=1
     entities['TOPIC'] = max(entities['TOPIC'], key=entities['TOPIC'].get)
